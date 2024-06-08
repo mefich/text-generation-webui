@@ -17,6 +17,7 @@ def get_fallback_settings():
         'n_ctx': 2048,
         'rope_freq_base': 0,
         'compress_pos_emb': 1,
+        'alpha_value': 1, # to ensure this value properly resets when changing models
         'truncation_length': shared.settings['truncation_length'],
         'skip_special_tokens': shared.settings['skip_special_tokens'],
         'custom_stopping_strings': shared.settings['custom_stopping_strings'],
@@ -62,7 +63,9 @@ def get_model_metadata(model):
                 model_settings['n_ctx'] = metadata[k]
             elif k.endswith('rope.freq_base'):
                 model_settings['rope_freq_base'] = metadata[k]
-            elif k.endswith('rope.scale_linear'):
+            elif k.endswith('rope.scale_linear'): # for old GGUF models
+                model_settings['compress_pos_emb'] = metadata[k]
+            elif k.endswith('rope.scaling.factor'): # for new GGUF models. I didn't add check for yarn/linear type since both need it.
                 model_settings['compress_pos_emb'] = metadata[k]
             elif k.endswith('block_count'):
                 model_settings['n_gpu_layers'] = metadata[k] + 1
@@ -94,7 +97,7 @@ def get_model_metadata(model):
                 model_settings['rope_freq_base'] = metadata['attn_config']['rope_theta']
 
             if 'rope_scaling' in metadata and type(metadata['rope_scaling']) is dict and all(key in metadata['rope_scaling'] for key in ('type', 'factor')):
-                if metadata['rope_scaling']['type'] == 'linear':
+                if metadata['rope_scaling']['type'] == 'linear' or metadata['rope_scaling']['type'] == 'yarn': # both types seem to need it
                     model_settings['compress_pos_emb'] = metadata['rope_scaling']['factor']
 
             # Read GPTQ metadata for old GPTQ loaders
